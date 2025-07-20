@@ -5,7 +5,7 @@ with open("jobs_deduplicated.json", "r", encoding="utf-8") as infile:
     data = json.load(infile)
 
 # Number of chunks
-num_parts = 5
+num_parts = 8
 chunk_size = len(data) // num_parts
 remainder = len(data) % num_parts
 

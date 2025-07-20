@@ -2,6 +2,7 @@ import json
 import time
 import os
 from dotenv import load_dotenv
+from tqdm import tqdm
 import google.generativeai as genai
 
 # Load environment variables
@@ -9,10 +10,8 @@ load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=api_key)
 
-# Use a supported Gemini model
 model_name = "models/gemini-2.5-flash"
 
-# Your prompt template
 PROMPT = """
 You are an information extraction AI. You will receive a full job description. You must extract the following fields **only if they are explicitly mentioned**, and return the result as a valid JSON object. If any field is not present, write `"Not specified"`.
 
@@ -56,21 +55,22 @@ Job Description:
 ---
 """
 
-# Function to call Gemini API and parse response
 def extract_from_description(description):
     try:
         response = genai.GenerativeModel(model_name).generate_content(PROMPT + description.strip())
         content = response.text.strip()
-        print("Gemini response:\n", content)
 
-        # Extract JSON from text
         start = content.find('{')
         end = content.rfind('}') + 1
         if start != -1 and end != -1:
             return json.loads(content[start:end])
         raise ValueError("No valid JSON found in the response.")
+
     except Exception as e:
-        print("Error:", e)
+        error_message = str(e)
+        if "quota" in error_message.lower() or "rate" in error_message.lower() or "expired" in error_message.lower():
+            raise RuntimeError("Quota exceeded or API key issue: " + error_message)
+        print("Non-critical error:", error_message)
         return {
             "experience_level": "Not specified",
             "required_skills": "Not specified",
@@ -83,20 +83,42 @@ def extract_from_description(description):
             "job_responsibilities": "Not specified"
         }
 
-# Load JSON, process, and enrich
 def enrich_json_with_description_data(infile, outfile):
-    with open(infile) as f:
+    with open(infile, "r") as f:
         jobs = json.load(f)
 
-    for job in jobs:
-        if "job_description" in job:
+    enriched_jobs = []
+    try:
+        for job in tqdm(jobs, desc="Processing Jobs", unit="job"):
             print(f"\nProcessing: {job.get('position', 'Unknown')}")
-            job["from_description"] = extract_from_description(job["job_description"])
-            time.sleep(1.5)  # to avoid rate limits
+            if "job_description" in job:
+                job["from_description"] = extract_from_description(job["job_description"])
+            else:
+                job["from_description"] = {
+                    "experience_level": "Not specified",
+                    "required_skills": "Not specified",
+                    "education": "Not specified",
+                    "job_type": "Not specified",
+                    "location": "Not specified",
+                    "salary": "Not specified",
+                    "remote_status": "Not specified",
+                    "technologies": "Not specified",
+                    "job_responsibilities": "Not specified"
+                }
+            enriched_jobs.append(job)
+            time.sleep(1.5)  # Prevent rate limiting
 
+    except RuntimeError as quota_error:
+        print("\n❌ API Limit Reached or Key Error. Saving progress so far...")
+        with open(outfile, "w") as f:
+            json.dump(enriched_jobs, f, indent=2)
+        print("✅ Progress saved to:", outfile)
+        return
+
+    # Final save if all processed
     with open(outfile, "w") as f:
-        json.dump(jobs, f, indent=2)
+        json.dump(enriched_jobs, f, indent=2)
+    print("\n✅ All jobs processed and saved to:", outfile)
 
-# Run script
 if __name__ == "__main__":
-    enrich_json_with_description_data("jobs_deduplicated.json", "jobs_enriched_gemini.json")
+    enrich_json_with_description_data("part_1.json", "part_1_enrich.json")
