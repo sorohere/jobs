@@ -84,7 +84,7 @@ def extract_from_description(description):
         }
 
 def enrich_json_with_description_data(infile, outfile):
-    with open(infile, "r") as f:
+    with open(infile, "r", encoding="utf-8") as f:
         jobs = json.load(f)
 
     enriched_jobs = []
