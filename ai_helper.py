@@ -1,20 +1,18 @@
 import json
 import time
-from openai import OpenAI
 import os
 from dotenv import load_dotenv
+import google.generativeai as genai
 
-# Load API key from .env file
+# Load environment variables
 load_dotenv()
-api_key = os.getenv("OPENROUTER_API_KEY")
+api_key = os.getenv("GOOGLE_API_KEY")
+genai.configure(api_key=api_key)
 
-# Initialize OpenAI client for OpenRouter
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=api_key,
-)
+# Use a supported Gemini model
+model_name = "models/gemini-2.5-flash"
 
-# Prompt for extraction
+# Your prompt template
 PROMPT = """
 You are an information extraction AI. You will receive a full job description. You must extract the following fields **only if they are explicitly mentioned**, and return the result as a valid JSON object. If any field is not present, write `"Not specified"`.
 
@@ -58,32 +56,19 @@ Job Description:
 ---
 """
 
-# Function to extract fields from a single job description
+# Function to call Gemini API and parse response
 def extract_from_description(description):
     try:
-        full_prompt = PROMPT + description.strip() + "\n---"
-        response = client.chat.completions.create(
-            model="meta-llama/llama-3.3-70b-instruct:free",
-            messages=[{"role": "user", "content": full_prompt}],
-            extra_headers={
-                "HTTP-Referer": "<YOUR_SITE_URL>",
-                "X-Title": "<YOUR_SITE_NAME>",
-            }
-        )
-        content = response.choices[0].message.content.strip()
+        response = genai.GenerativeModel(model_name).generate_content(PROMPT + description.strip())
+        content = response.text.strip()
+        print("Gemini response:\n", content)
 
-        print("Model response:\n", content)  # Debug print
-
-        # Attempt to extract JSON from response
-        first_brace = content.find('{')
-        last_brace = content.rfind('}') + 1
-
-        if first_brace != -1 and last_brace != -1:
-            json_str = content[first_brace:last_brace]
-            return json.loads(json_str)
-
-        raise ValueError("No valid JSON found in model output.")
-
+        # Extract JSON from text
+        start = content.find('{')
+        end = content.rfind('}') + 1
+        if start != -1 and end != -1:
+            return json.loads(content[start:end])
+        raise ValueError("No valid JSON found in the response.")
     except Exception as e:
         print("Error:", e)
         return {
@@ -98,20 +83,20 @@ def extract_from_description(description):
             "job_responsibilities": "Not specified"
         }
 
-# Function to enrich each job in a JSON file with extracted info
-def enrich_json_with_description_data(input_file, output_file):
-    with open(input_file, 'r', encoding='utf-8') as f:
+# Load JSON, process, and enrich
+def enrich_json_with_description_data(infile, outfile):
+    with open(infile) as f:
         jobs = json.load(f)
 
     for job in jobs:
         if "job_description" in job:
             print(f"\nProcessing: {job.get('position', 'Unknown')}")
             job["from_description"] = extract_from_description(job["job_description"])
-            time.sleep(1.5)  # Pause to respect API limits
+            time.sleep(1.5)  # to avoid rate limits
 
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(jobs, f, indent=2, ensure_ascii=False)
+    with open(outfile, "w") as f:
+        json.dump(jobs, f, indent=2)
 
-# Usage example
+# Run script
 if __name__ == "__main__":
-    enrich_json_with_description_data("temp.json", "jobs_enriched.json")
+    enrich_json_with_description_data("jobs_deduplicated.json", "jobs_enriched_gemini.json")
