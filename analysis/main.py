@@ -218,7 +218,7 @@ def analyze_emerging_skills_with_llm(df, top_skills_list, recent_threshold_days=
     model = genai.GenerativeModel('gemini-2.5-flash')
     
     prompt = f"""
-    You are a senior technology and recruitment analyst. Your task is to identify truly "emerging" skills from the latest job postings.
+    You are a senior technology and recruitment analyst. Your task is to identify truly "emerging" skills from the latest job postings for a SEMICONDUCTOR COMPANY.
 
     I have two sets of data for you:
     1.  **Baseline Top Skills**: This is a list of the most frequently mentioned skills across all job postings. These are the established, in-demand skills right now.
