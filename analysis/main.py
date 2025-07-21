@@ -90,6 +90,114 @@ def analyze_top_skills(df, top_n=10):
     
     return top_skills_df
 
+def analyze_job_locations(df, top_n=15):
+    """Analyzes and visualizes the top job locations."""
+    print("\n--- Analyzing Top Job Locations ---")
+    if 'location' not in df.columns:
+        print("'location' column not found, skipping analysis.")
+        return
+
+    # Extract city from "City, State, Country" format
+    df['city'] = df['location'].str.split(',').str[0].str.strip()
+    location_counts = df['city'].value_counts().nlargest(top_n)
+
+    if location_counts.empty:
+        print("No location data to analyze.")
+        return
+
+    print(f"Top {top_n} job locations:")
+    print(location_counts)
+
+    plt.figure(figsize=(12, 8))
+    sns.barplot(x=location_counts.values, y=location_counts.index, palette='coolwarm')
+    plt.title(f'Top {top_n} Job Locations', fontsize=16)
+    plt.xlabel('Number of Job Postings', fontsize=12)
+    plt.ylabel('City', fontsize=12)
+    plt.tight_layout()
+    
+    output_path = 'analysis/top_locations.png'
+    plt.savefig(output_path)
+    print(f"Location visualization saved to {output_path}")
+    return location_counts
+
+def analyze_top_companies(df, top_n=15):
+    """Analyzes and visualizes the top hiring companies."""
+    print("\n--- Analyzing Top Hiring Companies ---")
+    if 'company' not in df.columns:
+        print("'company' column not found, skipping analysis.")
+        return
+
+    company_counts = df['company'].value_counts().nlargest(top_n)
+
+    if company_counts.empty:
+        print("No company data to analyze.")
+        return
+
+    print(f"Top {top_n} hiring companies:")
+    print(company_counts)
+
+    plt.figure(figsize=(12, 8))
+    sns.barplot(x=company_counts.values, y=company_counts.index, palette='mako')
+    plt.title(f'Top {top_n} Companies Hiring', fontsize=16)
+    plt.xlabel('Number of Job Postings', fontsize=12)
+    plt.ylabel('Company', fontsize=12)
+    plt.tight_layout()
+
+    output_path = 'analysis/top_companies.png'
+    plt.savefig(output_path)
+    print(f"Company visualization saved to {output_path}")
+    return company_counts
+
+def analyze_experience_levels(df):
+    """Analyzes and visualizes the distribution of required experience levels."""
+    print("\n--- Analyzing Experience Level Distribution ---")
+    if 'from_description.experience_level' not in df.columns:
+        print("'from_description.experience_level' column not found, skipping analysis.")
+        return
+
+    def extract_min_exp(text):
+        if not isinstance(text, str):
+            return None
+        # Find all numbers in the string
+        numbers = re.findall(r'\d+', text)
+        # Return the first number found, which is typically the minimum years
+        if numbers:
+            return int(numbers[0])
+        return None
+
+    df['min_exp'] = df['from_description.experience_level'].apply(extract_min_exp)
+    
+    # Drop rows where experience could not be parsed
+    exp_df = df.dropna(subset=['min_exp']).copy()
+    
+    if exp_df.empty:
+        print("Could not parse any experience level data.")
+        return
+
+    # Define experience bins and labels
+    bins = [0, 3, 6, 10, 30]  # Bins: 0-2, 3-5, 6-9, 10+
+    labels = ['0-2 Years (Junior)', '3-5 Years (Mid-Level)', '6-9 Years (Senior)', '10+ Years (Lead/Principal)']
+    exp_df['exp_category'] = pd.cut(exp_df['min_exp'], bins=bins, labels=labels, right=False)
+
+    exp_counts = exp_df['exp_category'].value_counts().sort_index()
+
+    print("Experience Level Distribution:")
+    print(exp_counts)
+
+    plt.figure(figsize=(10, 6))
+    exp_counts.plot(kind='bar', color=sns.color_palette('rocket'))
+    plt.title('Job Postings by Experience Level', fontsize=16)
+    plt.xlabel('Experience Level Category', fontsize=12)
+    plt.ylabel('Number of Job Postings', fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+
+    output_path = 'analysis/experience_distribution.png'
+    plt.savefig(output_path)
+    print(f"Experience level visualization saved to {output_path}")
+    return exp_counts
+
+
 # --- 3. Trend Analysis with LLM Intelligence ---
 
 def analyze_emerging_skills_with_llm(df, top_skills_list, recent_threshold_days=2, top_n=10):
@@ -274,6 +382,129 @@ def generate_and_save_report(top_skills_df, emerging_skills_df):
     except Exception as e:
         print(f"An error occurred while calling the Gemini API: {e}")
 
+# --- 5. New Individual Reports ---
+
+def generate_location_report(location_df):
+    """Generates a report for job locations."""
+    print("\n--- Generating Location Analysis Report ---")
+    if location_df is None or location_df.empty:
+        print("No location data to generate a report from.")
+        return
+
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    locations_list = location_df.to_string()
+
+    prompt = f"""
+    You are a market analyst. Based on the following data of top job locations by number of postings, provide some key insights.
+
+    **Top 15 Job Locations Data:**
+    ```
+    {locations_list}
+    ```
+
+    **Your Task:**
+    Write a brief analysis in markdown format. What do these locations tell you about the job market? Are there any noticeable hubs?
+    """
+    try:
+        response = model.generate_content(prompt)
+        report_text = response.text
+
+        final_report_content = f"""
+# Job Location Analysis
+
+![Top Job Locations](top_locations.png)
+
+## Key Insights
+{report_text}
+"""
+        report_path = 'analysis/location_report.md'
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(final_report_content)
+        print(f"Location analysis report saved to {report_path}")
+    except Exception as e:
+        print(f"An error occurred during location report generation: {e}")
+
+def generate_company_report(company_df):
+    """Generates a report for top hiring companies."""
+    print("\n--- Generating Company Analysis Report ---")
+    if company_df is None or company_df.empty:
+        print("No company data to generate a report from.")
+        return
+
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    companies_list = company_df.to_string()
+
+    prompt = f"""
+    You are a competitive analyst. Based on the following data of top hiring companies, provide some key insights.
+
+    **Top 15 Companies Hiring Data:**
+    ```
+    {companies_list}
+    ```
+
+    **Your Task:**
+    Write a brief analysis in markdown format. What does this list of companies tell you about the competitive landscape for talent?
+    """
+    try:
+        response = model.generate_content(prompt)
+        report_text = response.text
+
+        final_report_content = f"""
+# Top Companies Hiring Analysis
+
+![Top Companies Hiring](top_companies.png)
+
+## Key Insights
+{report_text}
+"""
+        report_path = 'analysis/company_report.md'
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(final_report_content)
+        print(f"Company analysis report saved to {report_path}")
+    except Exception as e:
+        print(f"An error occurred during company report generation: {e}")
+
+def generate_experience_report(experience_df):
+    """Generates a report for experience level distribution."""
+    print("\n--- Generating Experience Level Analysis Report ---")
+    if experience_df is None or experience_df.empty:
+        print("No experience data to generate a report from.")
+        return
+
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    experience_list = experience_df.to_string()
+
+    prompt = f"""
+    You are a talent strategist. Based on the following data on the distribution of job postings by experience level, provide some key insights.
+
+    **Experience Level Distribution Data:**
+    ```
+    {experience_list}
+    ```
+
+    **Your Task:**
+    Write a brief analysis in markdown format. What does this distribution tell you about the current demand for different levels of seniority in the job market?
+    """
+    try:
+        response = model.generate_content(prompt)
+        report_text = response.text
+
+        final_report_content = f"""
+# Job Experience Level Analysis
+
+![Experience Level Distribution](experience_distribution.png)
+
+## Key Insights
+{report_text}
+"""
+        report_path = 'analysis/experience_report.md'
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(final_report_content)
+        print(f"Experience level report saved to {report_path}")
+    except Exception as e:
+        print(f"An error occurred during experience report generation: {e}")
+
+
 def main():
     """Main function to run the analysis pipeline."""
     df = load_and_prepare_data()
@@ -282,6 +513,9 @@ def main():
 
     # Step 2: Frequency Analysis
     top_skills_df = analyze_top_skills(df)
+    location_df = analyze_job_locations(df)
+    company_df = analyze_top_companies(df)
+    experience_df = analyze_experience_levels(df)
     
     # Step 3: Trend Analysis with LLM
     emerging_skills_df = analyze_emerging_skills_with_llm(df, top_skills_df['Skill'].tolist(), recent_threshold_days=2)
@@ -289,6 +523,9 @@ def main():
     # Step 4: LLM-Powered Synthesis and Report Generation
     if not top_skills_df.empty:
         generate_and_save_report(top_skills_df, emerging_skills_df)
+        generate_location_report(location_df)
+        generate_company_report(company_df)
+        generate_experience_report(experience_df)
 
 
 if __name__ == '__main__':

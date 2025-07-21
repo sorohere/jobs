@@ -1,8 +1,6 @@
 const fs = require('fs-extra');
 const linkedIn = require('linkedin-jobs-api');
-const pLimit = require('p-limit').default; // Fix: use `.default` for ES module interop
-
-// === CONFIGURATION ===
+const pLimit = require('p-limit').default; 
 
 // Semiconductor keywords based on case study skill areas
 const keywords = [
