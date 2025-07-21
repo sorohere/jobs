@@ -20,7 +20,7 @@ genai.configure(api_key=API_KEY)
 
 # --- 1. Data Loading and Preparation ---
 
-def load_and_prepare_data(json_path='jobs_output.json'):
+def load_and_prepare_data(json_path='jobs.json'):
     """Loads job data from JSON, prepares it for analysis."""
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -32,10 +32,11 @@ def load_and_prepare_data(json_path='jobs_output.json'):
     df = pd.json_normalize(data)
 
     # Combine skills and technologies into a single list
+    # The 'get' method provides a default empty list if a key is missing
     df['skills'] = df.apply(
         lambda row: list(set(
-            (row.get('required_skills', []) if isinstance(row.get('required_skills'), list) else []) +
-            (row.get('technologies', []) if isinstance(row.get('technologies'), list) else [])
+            (row.get('from_description.required_skills', []) if isinstance(row.get('from_description.required_skills'), list) else []) +
+            (row.get('from_description.technologies', []) if isinstance(row.get('from_description.technologies'), list) else [])
         )),
         axis=1
     )
@@ -46,25 +47,8 @@ def load_and_prepare_data(json_path='jobs_output.json'):
     # Convert 'agoTime' (e.g., "1 day ago") to a numeric value for sorting
     df['days_ago'] = df['agoTime'].str.extract(r'(\d+)').astype(float).fillna(30) # Default to 30 for non-matches
 
-    # Add city from metadata for cleaner location analysis
-    if 'location' in df.columns:
-        # Extract the first part of the location string (e.g., "Bengaluru" from "Bengaluru, Karnataka, India")
-        df['city'] = df['location'].apply(lambda x: x.split(',')[0] if isinstance(x, str) else 'Unknown')
-    else:
-        df['city'] = "Unknown"
-
-    # Clean up company names by removing potential suffixes
-    if 'company' in df.columns:
-        df['company'] = df['company'].str.replace(r'®', '', regex=True).str.strip()
-
-    # Add remote status from description, cleaning it up
-    if 'remote_status' in df.columns:
-        df['remote_status'] = df['remote_status'].fillna('Unknown').replace('Not specified', 'Unknown')
-    else:
-        df['remote_status'] = "Unknown"
-
     print("Data loaded and prepared successfully.")
-    print(df[['position', 'company', 'days_ago', 'skills', 'city']].head())
+    print(df[['position', 'company', 'days_ago', 'skills']].head())
     
     return df
 
@@ -105,98 +89,6 @@ def analyze_top_skills(df, top_n=10):
     print(f"Visualization saved to {output_path}")
     
     return top_skills_df
-
-def analyze_jobs_by_location(df, top_n=10):
-    """Analyzes and visualizes job distribution by location."""
-    print("\n--- Analyzing Jobs by Location ---")
-    if 'city' not in df.columns or df['city'].isnull().all():
-        print("Location data not available.")
-        return pd.DataFrame()
-
-    location_counts = df['city'].value_counts().nlargest(top_n)
-    location_df = location_counts.reset_index()
-    location_df.columns = ['City', 'Job Count']
-
-    print(f"Top {top_n} locations with the most jobs:")
-    print(location_df.to_string(index=False))
-
-    plt.figure(figsize=(12, 8))
-    sns.barplot(x='Job Count', y='City', data=location_df, palette='coolwarm')
-    plt.title(f'Top {top_n} Job Locations', fontsize=16)
-    plt.xlabel('Number of Job Postings', fontsize=12)
-    plt.ylabel('City', fontsize=12)
-    plt.tight_layout()
-    
-    output_path = 'analysis/jobs_by_location.png'
-    plt.savefig(output_path)
-    print(f"Visualization saved to {output_path}")
-    
-    return location_df
-
-def analyze_top_companies(df, top_n=10):
-    """Analyzes and visualizes top hiring companies."""
-    print("\n--- Analyzing Top Hiring Companies ---")
-    if 'company' not in df.columns or df['company'].isnull().all():
-        print("Company data not available.")
-        return pd.DataFrame()
-
-    company_counts = df['company'].value_counts().nlargest(top_n)
-    company_df = company_counts.reset_index()
-    company_df.columns = ['Company', 'Job Count']
-
-    print(f"Top {top_n} hiring companies:")
-    print(company_df.to_string(index=False))
-
-    plt.figure(figsize=(12, 8))
-    sns.barplot(x='Job Count', y='Company', data=company_df, palette='rocket')
-    plt.title(f'Top {top_n} Hiring Companies', fontsize=16)
-    plt.xlabel('Number of Job Postings', fontsize=12)
-    plt.ylabel('Company', fontsize=12)
-    plt.tight_layout()
-    
-    output_path = 'analysis/top_companies.png'
-    plt.savefig(output_path)
-    print(f"Visualization saved to {output_path}")
-    
-    return company_df
-
-def analyze_remote_status(df):
-    """Analyzes and visualizes the distribution of work arrangements."""
-    print("\n--- Analyzing Work Arrangements (Remote/Hybrid/On-site) ---")
-    if 'remote_status' not in df.columns or df['remote_status'].isnull().all():
-        print("Remote status data not available.")
-        return pd.DataFrame()
-
-    # Normalize values for better grouping
-    df['remote_status_normalized'] = df['remote_status'].str.lower().str.strip().replace({
-        'on-site': 'On-site', 'remote-first': 'Remote', 'remote': 'Remote', 'hybrid': 'Hybrid'
-    })
-    
-    valid_statuses = ['On-site', 'Remote', 'Hybrid']
-    # Filter for valid statuses and then count
-    remote_counts = df[df['remote_status_normalized'].isin(valid_statuses)]['remote_status_normalized'].value_counts()
-
-    if remote_counts.empty:
-        print("No valid remote status data found.")
-        return pd.DataFrame()
-
-    remote_df = remote_counts.reset_index()
-    remote_df.columns = ['Work Arrangement', 'Count']
-
-    print("Distribution of work arrangements:")
-    print(remote_df.to_string(index=False))
-
-    plt.figure(figsize=(10, 7))
-    plt.pie(remote_counts, labels=remote_counts.index, autopct='%1.1f%%', startangle=140, colors=sns.color_palette('pastel'))
-    plt.title('Distribution of Work Arrangements', fontsize=16)
-    plt.ylabel('') # Hide the y-label
-    plt.tight_layout()
-    
-    output_path = 'analysis/remote_status.png'
-    plt.savefig(output_path)
-    print(f"Visualization saved to {output_path}")
-    
-    return remote_df
 
 # --- 3. Trend Analysis with LLM Intelligence ---
 
@@ -287,21 +179,18 @@ def analyze_emerging_skills_with_llm(df, top_skills_list, recent_threshold_days=
 
 # --- 4. LLM-Powered Synthesis ---
 
-def generate_and_save_report(top_skills_df, emerging_skills_df, location_df, company_df, remote_df):
+def generate_and_save_report(top_skills_df, emerging_skills_df):
     """Uses Gemini to generate a report and saves it to a markdown file with embedded charts."""
     print("\n--- Step 4: Generating Comprehensive Report with Gemini ---")
 
-    if all(df.empty for df in [top_skills_df, emerging_skills_df, location_df, company_df, remote_df]):
+    if top_skills_df.empty and emerging_skills_df.empty:
         print("No data to generate a report from.")
         return
 
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
 
-    top_skills_list = top_skills_df.to_string(index=False) if not top_skills_df.empty else "No data available."
+    top_skills_list = top_skills_df.to_string(index=False)
     emerging_skills_list = emerging_skills_df.to_string(index=False) if not emerging_skills_df.empty else "None identified"
-    location_list = location_df.to_string(index=False) if not location_df.empty else "No data available."
-    company_list = company_df.to_string(index=False) if not company_df.empty else "No data available."
-    remote_list = remote_df.to_string(index=False) if not remote_df.empty else "No data available."
 
     company_profile = """
     **Main Focus:** A semiconductor company making special computer chips for AI systems, data centers, and networks, focusing on technology that processes and moves data very fast.
@@ -320,12 +209,9 @@ def generate_and_save_report(top_skills_df, emerging_skills_df, location_df, com
     {company_profile}
     ---
 
-    Your analysis is based on several key charts derived from recent job market data:
-    1.  **Top In-Demand Skills (`top_skills.png`)**: Core industry competencies.
-    2.  **Emerging Skills (`emerging_skills.png`)**: Future skill trends.
-    3.  **Job Locations (`jobs_by_location.png`)**: Geographic hiring hotspots.
-    4.  **Top Hiring Companies (`top_companies.png`)**: Key players in the talent market.
-    5.  **Work Arrangements (`remote_status.png`)**: Distribution of on-site, hybrid, and remote roles.
+    Your analysis is based on two key visualizations derived from recent job market data:
+    1.  **Top In-Demand Skills Chart (`top_skills.png`)**: This shows the most frequently mentioned skills, indicating core competencies in the industry.
+    2.  **Emerging Skills Chart (`emerging_skills.png`)**: This highlights skills trending in the most recent job postings, pointing to future needs.
 
     Here is the data that populates those charts:
 
@@ -334,36 +220,19 @@ def generate_and_save_report(top_skills_df, emerging_skills_df, location_df, com
     {top_skills_list}
     ```
 
-    **Top Emerging Skills Data:**
+    **Top 10 Emerging Skills Data:**
     ```
     {emerging_skills_list}
     ```
 
-    **Top 10 Job Locations Data:**
-    ```
-    {location_list}
-    ```
-
-    **Top 10 Hiring Companies Data:**
-    ```
-    {company_list}
-    ```
-
-    **Work Arrangement Distribution Data:**
-    ```
-    {remote_list}
-    ```
-
     **Your Task:**
-    Write a comprehensive analysis in markdown format. Your report must have the following sections, in this order:
-    1.  **Executive Summary**: A brief overview of all key findings.
-    2.  **Top Skills Analysis**: Insights from the most in-demand skills.
-    3.  **Emerging Skills Analysis**: Insights on trending and future skills.
-    4.  **Geographic & Market Landscape**: Insights from the location and top companies data. Who is hiring and where?
-    5.  **Workplace Trends**: Insights from the remote/hybrid/on-site data.
-    6.  **Actionable Recommendations**: Strategic advice tailored to the company profile.
+    Write a comprehensive analysis in markdown format. Your report must:
+    1.  Start with a brief **Executive Summary**.
+    2.  Provide **Key Insights from the 'Top In-Demand Skills' chart**.
+    3.  Provide **Key Insights from the 'Emerging Skills' chart**.
+    4.  Conclude with a set of **Actionable Recommendations**. These recommendations must be **specifically tailored to the company profile provided**. They should advise on how to leverage the skill trends to strengthen their position in their target markets (Data Center, Automotive, Enterprise, Carrier) and achieve their strategic goals.
 
-    Please generate only the text for the report, clearly separated by the headers above.
+    Please generate only the text for the report. The final markdown file will embed the images.
     """
 
     print("Sending prompt to Gemini...")
@@ -374,54 +243,27 @@ def generate_and_save_report(top_skills_df, emerging_skills_df, location_df, com
         print(report_text)
         print("-------------------------------------------\n")
 
-        def safe_split(text, marker):
-            """Splits text by a marker and returns the second part, or empty string."""
-            parts = re.split(f'## {marker}', text, flags=re.IGNORECASE)
-            return parts[1] if len(parts) > 1 else ""
-
-        # Extract sections using the new headers
-        summary = safe_split(report_text, "Executive Summary").split("## Top Skills Analysis")[0].strip()
-        top_skills_insights = safe_split(report_text, "Top Skills Analysis").split("## Emerging Skills Analysis")[0].strip()
-        emerging_skills_insights = safe_split(report_text, "Emerging Skills Analysis").split("## Geographic & Market Landscape")[0].strip()
-        geo_market_insights = safe_split(report_text, "Geographic & Market Landscape").split("## Workplace Trends")[0].strip()
-        workplace_insights = safe_split(report_text, "Workplace Trends").split("## Actionable Recommendations")[0].strip()
-        recommendations = safe_split(report_text, "Actionable Recommendations").strip()
-
-
         # Construct the final markdown file with embedded images
         final_report_content = f"""
 # Job Market Skills Analysis
 
 ## Executive Summary
-{summary}
+{report_text.split("Key Insights")[0].split("Executive Summary")[-1].strip()}
 
 ## Top In-Demand Skills
 ![Top In-Demand Skills](top_skills.png)
 
-### Key Insights
-{top_skills_insights}
+### Key Insights from the 'Top In-Demand Skills' Chart
+{"Key Insights" + report_text.split("Key Insights")[1].split("Actionable Recommendations")[0].strip()}
 
 ## Emerging Skills
 ![Emerging Skills](emerging_skills.png)
 
-### Key Insights
-{emerging_skills_insights}
-
-## Geographic & Market Landscape
-![Top Job Locations](jobs_by_location.png)
-![Top Hiring Companies](top_companies.png)
-
-### Key Insights
-{geo_market_insights}
-
-## Workplace Trends
-![Work Arrangements](remote_status.png)
-
-### Key Insights
-{workplace_insights}
+### Key Insights from the 'Emerging Skills' Chart
+{report_text.split("Key Insights from the 'Emerging Skills' chart")[-1].split("Actionable Recommendations")[0].strip()}
 
 ## Actionable Recommendations
-{recommendations}
+{"Actionable Recommendations" + report_text.split("Actionable Recommendations")[-1].strip()}
 """
 
         report_path = 'analysis/insights_report.md'
@@ -438,20 +280,15 @@ def main():
     if df.empty:
         return
 
-    # Step 2: Frequency and Distribution Analysis
+    # Step 2: Frequency Analysis
     top_skills_df = analyze_top_skills(df)
-    location_df = analyze_jobs_by_location(df)
-    company_df = analyze_top_companies(df)
-    remote_df = analyze_remote_status(df)
     
     # Step 3: Trend Analysis with LLM
-    emerging_skills_df = pd.DataFrame()
-    if not top_skills_df.empty:
-        emerging_skills_df = analyze_emerging_skills_with_llm(df, top_skills_df['Skill'].tolist(), recent_threshold_days=2)
+    emerging_skills_df = analyze_emerging_skills_with_llm(df, top_skills_df['Skill'].tolist(), recent_threshold_days=2)
 
     # Step 4: LLM-Powered Synthesis and Report Generation
     if not top_skills_df.empty:
-        generate_and_save_report(top_skills_df, emerging_skills_df, location_df, company_df, remote_df)
+        generate_and_save_report(top_skills_df, emerging_skills_df)
 
 
 if __name__ == '__main__':
