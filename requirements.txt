@@ -1,0 +1,8 @@
+pandas
+matplotlib
+seaborn
+python-dotenv
+google-generativeai
+scikit-learn
+gensim
+nltk 

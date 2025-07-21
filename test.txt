@@ -1,0 +1,72 @@
+graph TD;
+    %% --- Main Style Definitions ---
+    classDef root fill:#0077c8,stroke:#005a9e,stroke-width:2px,color:#fff,font-weight:bold;
+    classDef cat1 fill:#023e8a,stroke:#001d3d,stroke-width:2px,color:#fff;
+    classDef cat2 fill:#007f5f,stroke:#004b38,stroke-width:2px,color:#fff;
+    classDef cat3 fill:#8c6d00,stroke:#594500,stroke-width:2px,color:#fff;
+    classDef sub fill:#e9f5ff,stroke:#0077c8,stroke-width:1px,color:#000;
+    classDef leaf fill:#f0f0f0,stroke:#aaa,stroke-width:1px,color:#000;
+
+    %% --- Root Node ---
+    Root("Semiconductor Job Domains"):::root;
+
+    %% --- Main Categories ---
+    A["I. R&D & Engineering"]:::cat1;
+    B["II. Software & Data"]:::cat2;
+    C["III. Business, Operations & Support"]:::cat3;
+
+    Root --> A;
+    Root --> B;
+    Root --> C;
+
+    %% ===================================================
+    %% I. R&D & Engineering Sub-Domains
+    %% ===================================================
+    subgraph R&D and Engineering
+        A --> A1(Chip Design & Verification);
+        A --> A2(Analog & Mixed-Signal Design);
+        A --> A3(Semiconductor Process & Manufacturing);
+        A --> A4(Systems & Hardware Engineering);
+        A --> A5(General R&D and Engineering);
+    end
+
+    A1 --> A1a[RTL Design]:::leaf;
+    A1 --> A1b[Design Verification]:::leaf;
+    A1 --> A1c[Physical Design & Layout]:::leaf;
+    A1 --> A1d[Design for Test]:::leaf;
+    
+    A4 --> A4a[Embedded Systems & Firmware]:::leaf;
+    A4 --> A4b[Hardware Engineering & Validation]:::leaf;
+
+    class A1,A2,A3,A4,A5 sub;
+    class A1a,A1b,A1c,A1d,A4a,A4b leaf;
+
+    %% ===================================================
+    %% II. Software & Data Sub-Domains
+    %% ===================================================
+    subgraph Software and Data
+        B --> B1(AI & Machine Learning);
+        B --> B2(General Software Development);
+        B --> B3(Mobile Development);
+        B --> B4(Data Engineering & Architecture);
+        B --> B5(Quality Assurance & Testing);
+    end
+    
+    class B1,B2,B3,B4,B5 sub;
+
+    %% ===================================================
+    %% III. Business, Operations & Support Sub-Domains
+    %% ===================================================
+    subgraph Business and Operations
+        C --> C1(Executive Leadership & Management);
+        C --> C2(Product & Program Management);
+        C --> C3(Sales, Marketing & Business Development);
+        C --> C4(Human Resources & Talent Acquisition);
+        C --> C5(IT, Infrastructure & Security);
+        C --> C6(Design & Creative);
+        C --> C7(Supply Chain & Procurement);
+        C --> C8(Finance, Legal & Administrative);
+        C --> C9(General Business & Operations);
+    end
+
+    class C1,C2,C3,C4,C5,C6,C7,C8,C9 sub;
