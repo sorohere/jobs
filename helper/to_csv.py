@@ -5,6 +5,7 @@ import os
 
 def json_to_csv(json_file_path, csv_file_path=None):
     # If output CSV path is not given, use the same name with .csv extension
+    
     if csv_file_path is None:
         csv_file_path = os.path.splitext(json_file_path)[0] + '.csv'
 
