@@ -8,7 +8,6 @@ from collections import Counter
 
 # --- Configuration ---
 # TODO: Add your Gemini API Key here.
-# It's recommended to use environment variables for security.
 from dotenv import load_dotenv
 load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
