@@ -3,6 +3,7 @@ const linkedIn = require('linkedin-jobs-api');
 const pLimit = require('p-limit').default; 
 
 // Semiconductor keywords based on case study skill areas
+
 const keywords = [
   "VLSI Design Engineer", "RTL Design Engineer", "ASIC Engineer", "SoC Engineer",
   "Digital Design Engineer", "Analog Design Engineer", "FPGA Engineer",
